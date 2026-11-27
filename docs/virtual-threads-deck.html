@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>가상 스레드 식당</title>
+
+<style>
+  :root {
+    color-scheme: light dark;
+    --ground: #F6F4ED;
+    --card: #FFFFFF;
+    --ink: #2A2B26;
+    --sub: #6B6A60;
+    --line: #E3E0D4;
+    --ticket: #FFC93C;
+    --ticket-ink: #6B5200;
+    --waiter: #33506B;
+    --waiter-2: #4E6E8E;
+    --skin: #E8C39E;
+    --go: #3E8E5A;
+    --stop: #C4543A;
+    --kitchen: #9AA7B4;
+    --code-bg: #F0EDE3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #211F1A;
+      --card: #2B2924;
+      --ink: #EDEAE0;
+      --sub: #A9A69A;
+      --line: #3C3A32;
+      --ticket: #E6B32E;
+      --ticket-ink: #3E3000;
+      --waiter: #7FA3C4;
+      --waiter-2: #5D7E9C;
+      --skin: #D4A97F;
+      --go: #5FB380;
+      --stop: #D97D66;
+      --kitchen: #6E7B88;
+      --code-bg: #1C1B16;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #211F1A;
+    --card: #2B2924;
+    --ink: #EDEAE0;
+    --sub: #A9A69A;
+    --line: #3C3A32;
+    --ticket: #E6B32E;
+    --ticket-ink: #3E3000;
+    --waiter: #7FA3C4;
+    --waiter-2: #5D7E9C;
+    --skin: #D4A97F;
+    --go: #5FB380;
+    --stop: #D97D66;
+    --kitchen: #6E7B88;
+    --code-bg: #1C1B16;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Gowun Dodum", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    line-height: 1.7;
+    margin: 0;
+    padding: 48px 20px 80px;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 36px; }
+
+  h1 {
+    font-family: "Do Hyeon", "Apple SD Gothic Neo", sans-serif;
+    font-size: clamp(2.4rem, 7vw, 3.4rem);
+    line-height: 1.15;
+    margin: 0;
+    text-wrap: balance;
+  }
+  h2 {
+    font-family: "Do Hyeon", "Apple SD Gothic Neo", sans-serif;
+    font-size: 1.5rem;
+    margin: 0 0 4px;
+    text-wrap: balance;
+  }
+  .lede { font-size: 1.05rem; color: var(--sub); margin: 10px 0 0; }
+
+  .scene {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 26px 26px 22px;
+  }
+  .scene svg { display: block; width: 100%; height: auto; margin: 10px 0 14px; }
+  .scene p { margin: 0; font-size: 1.08rem; text-wrap: balance; }
+  .scene .cap { margin-top: 8px; font-size: .9rem; color: var(--sub); }
+  .num {
+    font-family: "Do Hyeon", sans-serif;
+    font-size: .82rem;
+    letter-spacing: .12em;
+    color: var(--sub);
+    margin: 0 0 2px;
+  }
+  b.go { color: var(--go); }
+  b.stop { color: var(--stop); }
+  b.tk { color: var(--ticket-ink); background: var(--ticket); padding: 0 .3em; border-radius: 4px; }
+
+  code, .mono {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: .88em;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    margin: 12px 0 0;
+    font-size: .86rem;
+    line-height: 1.6;
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .chip {
+    font-size: .82rem;
+    border: 1px solid var(--line);
+    background: var(--code-bg);
+    border-radius: 999px;
+    padding: 3px 12px;
+    color: var(--ink);
+  }
+  .chip.bad { border-color: var(--stop); color: var(--stop); background: transparent; }
+
+  .map { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: .92rem; }
+  .map td { border-top: 1px solid var(--line); padding: 6px 10px 6px 0; vertical-align: top; }
+  .map td:first-child { color: var(--sub); white-space: nowrap; }
+
+  footer { font-size: .9rem; color: var(--sub); }
+  footer a { color: var(--waiter); font-weight: bold; }
+  .links {
+    display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;
+  }
+  .links a {
+    display: inline-block;
+    border: 1px solid var(--line);
+    background: var(--card);
+    border-radius: 10px;
+    padding: 8px 14px;
+    text-decoration: none;
+  }
+  @media (max-width: 600px) {
+    body { padding: 16px 12px 40px; overflow-wrap: anywhere; }
+    .scene { padding: 14px 12px; min-width: 0; }
+    pre { white-space: pre-wrap; }
+    .map td:first-child { white-space: normal; }
+  }
+</style>
+</head>
+<body>
+<main class="wrap">
+<nav aria-label="서재"><a href="./">← 학습 서재</a></nav>
+  <header>
+    <h1>가상 스레드 식당</h1>
+    <p class="lede">웨이터 비유로 시작해 <code>mount()/unmount()</code>, Continuation, pinning 까지.
+    실측 수치와 JDK 소스 근거가 붙은 개발자용 시각 덱입니다.
+</p>
+  </header>
+
+  <!-- 1. 플랫폼 스레드 비용 -->
+  <section class="scene">
+    <p class="num">1</p>
+    <h2>플랫폼 스레드는 왜 비싼가</h2>
+    <svg viewBox="0 0 750 190" role="img" aria-label="Thread.start 에서 커널 스레드까지 생성 파이프라인">
+      <defs>
+        <g id="waiter">
+          <circle cx="0" cy="-46" r="16" fill="var(--skin)"/>
+          <rect x="-14" y="-30" width="28" height="44" rx="8" fill="var(--waiter)"/>
+          <rect x="-14" y="-30" width="28" height="12" rx="6" fill="var(--waiter-2)"/>
+          <rect x="-10" y="14" width="8" height="26" rx="4" fill="var(--waiter)"/>
+          <rect x="2" y="14" width="8" height="26" rx="4" fill="var(--waiter)"/>
+        </g>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--sub)"/>
+        </marker>
+      </defs>
+      <rect x="14" y="40" width="196" height="44" rx="9" fill="var(--code-bg)" stroke="var(--line)"/>
+      <text x="112" y="67" text-anchor="middle" font-size="15" class="mono" fill="var(--ink)">new Thread().start()</text>
+      <line x1="210" y1="62" x2="248" y2="62" stroke="var(--sub)" stroke-width="2.5" marker-end="url(#arr)"/>
+      <rect x="252" y="40" width="130" height="44" rx="9" fill="var(--code-bg)" stroke="var(--line)"/>
+      <text x="317" y="67" text-anchor="middle" font-size="15" class="mono" fill="var(--ink)">start0() native</text>
+      <line x1="382" y1="62" x2="420" y2="62" stroke="var(--sub)" stroke-width="2.5" marker-end="url(#arr)"/>
+      <rect x="424" y="40" width="150" height="44" rx="9" fill="var(--code-bg)" stroke="var(--line)"/>
+      <text x="499" y="67" text-anchor="middle" font-size="15" class="mono" fill="var(--ink)">pthread_create</text>
+      <line x1="574" y1="62" x2="612" y2="62" stroke="var(--sub)" stroke-width="2.5" marker-end="url(#arr)"/>
+      <use href="#waiter" x="676" y="92"/>
+      <text x="676" y="168" text-anchor="middle" font-size="14" fill="var(--sub)">커널 스레드 1개, 1:1</text>
+      <text x="14" y="120" font-size="13" fill="var(--stop)">OS 스택 + 가드 페이지</text>
+      <text x="14" y="140" font-size="13" fill="var(--stop)">"very expensive" (os_linux.cpp 주석)</text>
+      <text x="424" y="120" font-size="13" fill="var(--sub)">EAGAIN 이면 4회 재시도 후 OOME.</text>
+      <text x="424" y="140" font-size="13" fill="var(--sub)">스레드는 실패할 수 있는 자원</text>
+    </svg>
+    <p>웨이터(스레드)는 <b>정직원</b>입니다. 한 명 뽑을 때마다 OS 가 커널 스레드를 1:1 로 붙입니다.
+    빈 스레드 1만 개 생성이 <b class="stop">342ms</b>, 가상 스레드는 <b class="go">3ms</b> (실측, 114배).</p>
+    <p class="cap">더 큰 문제는 블로킹입니다. DB, HTTP 를 기다리는 동안 이 비싼 스레드가 통째로 놉니다.</p>
+  </section>
+
+  <!-- 2. 풀의 한계 -->
+  <section class="scene">
+    <p class="num">2</p>
+    <h2>스레드 풀 - 아끼는 데는 한계가 있다</h2>
+    <svg viewBox="0 0 720 210" role="img" aria-label="ThreadPoolExecutor 판단 순서와 풀 크기별 처리 시간">
+      <rect x="14" y="20" width="180" height="46" rx="9" fill="var(--code-bg)" stroke="var(--line)"/>
+      <text x="104" y="42" text-anchor="middle" font-size="14" class="mono" fill="var(--ink)">execute(task)</text>
+      <text x="104" y="59" text-anchor="middle" font-size="12" fill="var(--sub)">1. core 미만? 새 스레드</text>
+      <line x1="194" y1="43" x2="232" y2="43" stroke="var(--sub)" stroke-width="2.5" marker-end="url(#arr)"/>
+      <rect x="236" y="20" width="200" height="46" rx="9" fill="var(--ticket)"/>
+      <text x="336" y="42" text-anchor="middle" font-size="14" fill="var(--ticket-ink)">2. 큐가 먼저!</text>
+      <text x="336" y="59" text-anchor="middle" font-size="12" fill="var(--ticket-ink)">core 차면 항상 큐에 넣는다</text>
+      <line x1="436" y1="43" x2="474" y2="43" stroke="var(--sub)" stroke-width="2.5" marker-end="url(#arr)"/>
+      <rect x="478" y="20" width="228" height="46" rx="9" fill="var(--code-bg)" stroke="var(--line)"/>
+      <text x="592" y="42" text-anchor="middle" font-size="14" fill="var(--ink)">3. 큐가 꽉 차야 증원</text>
+      <text x="592" y="59" text-anchor="middle" font-size="12" class="mono" fill="var(--sub)">maximumPoolSize</text>
+      <text x="14" y="98" font-size="13" fill="var(--stop)">함정: 무제한 큐(LinkedBlockingQueue)면 3단계에 영원히 도달 불가. javadoc: "doesn't have any effect"</text>
+      <text x="14" y="140" font-size="14" fill="var(--ink)">풀 200</text>
+      <rect x="90" y="124" width="300" height="24" rx="5" fill="var(--waiter)"/>
+      <text x="400" y="141" font-size="14" fill="var(--ink)">132ms</text>
+      <text x="14" y="180" font-size="14" fill="var(--ink)">풀 1000</text>
+      <rect x="90" y="164" width="448" height="24" rx="5" fill="var(--stop)"/>
+      <text x="548" y="181" font-size="14" fill="var(--stop)">197ms (1.5배 감속)</text>
+    </svg>
+    <p>부하가 늘어도 스레드보다 <b class="tk">큐가 먼저</b>고, 웨이터를 5배 뽑았더니
+    <b class="stop">오히려 느려졌습니다</b> (1ms 블로킹 태스크 2만 개 실측).</p>
+    <p class="cap">생성 비용 + 동시에 깨어나는 스레드들의 스케줄링 비용. 블로킹 처리량은 스레드 수로 살 수 없습니다.</p>
+  </section>
+
+  <!-- 3. 핵심 사이클 -->
+  <section class="scene">
+    <p class="num">3 · 핵심</p>
+    <h2>mount / unmount - 주문서를 보드에 걸다</h2>
+    <svg viewBox="0 0 720 270" role="img" aria-label="RUNNING에서 park를 거쳐 PARKED로, unpark로 다시 RUNNING으로 도는 순환">
+      <rect x="30" y="30" width="200" height="60" rx="10" fill="var(--waiter)"/>
+      <text x="130" y="56" text-anchor="middle" font-size="16" fill="var(--card)">RUNNING</text>
+      <text x="130" y="76" text-anchor="middle" font-size="12" fill="var(--card)">carrier 위에서 실행 (mounted)</text>
+      <line x1="230" y1="60" x2="300" y2="60" stroke="var(--sub)" stroke-width="2.5" marker-end="url(#arr)"/>
+      <text x="265" y="48" text-anchor="middle" font-size="12" class="mono" fill="var(--sub)">park()</text>
+      <rect x="304" y="30" width="150" height="60" rx="10" fill="var(--code-bg)" stroke="var(--line)"/>
+      <text x="379" y="56" text-anchor="middle" font-size="14" fill="var(--ink)">스택 동결 시도</text>
+      <text x="379" y="76" text-anchor="middle" font-size="12" class="mono" fill="var(--sub)">Continuation.yield</text>
+      <line x1="454" y1="60" x2="524" y2="60" stroke="var(--go)" stroke-width="2.5" marker-end="url(#arr)"/>
+      <text x="489" y="48" text-anchor="middle" font-size="12" fill="var(--go)">성공</text>
+      <rect x="528" y="30" width="176" height="60" rx="10" fill="var(--ticket)"/>
+      <text x="616" y="56" text-anchor="middle" font-size="16" fill="var(--ticket-ink)">PARKED</text>
+      <text x="616" y="76" text-anchor="middle" font-size="12" fill="var(--ticket-ink)">스택은 힙에, carrier 반납</text>
+      <path d="M 616 90 L 616 150 L 130 150 L 130 94" fill="none" stroke="var(--sub)" stroke-width="2.5" marker-end="url(#arr)"/>
+      <text x="373" y="142" text-anchor="middle" font-size="12" fill="var(--sub)">unpark → 스케줄러 재제출 → 아무 carrier 나 mount 해서 재개</text>
+      <text x="30" y="196" font-size="13.5" fill="var(--sub)">carrier 풀: ForkJoinPool(asyncMode=true, FIFO) · 병렬도 = 코어 수 · 상한 = max(parallelism, 256)</text>
+      <text x="30" y="220" font-size="13.5" fill="var(--sub)">비유: 주문서(스택)를 보드(힙)에 걸고 웨이터(carrier)는 다른 테이블로. 음식이 나오면 아무나 이어서 서빙.</text>
+      <text x="30" y="252" font-size="13.5" fill="var(--stop)">가상 스레드 풀링 금지 - JEP 444: "Virtual threads should never be pooled"</text>
+    </svg>
+    <pre><code>// VirtualThread.java:295-305 - 가상 스레드의 일생은 이 블록의 반복
+mount();
+try {
+    cont.run();               // Continuation 실행 또는 재개
+} finally {
+    unmount();
+    if (cont.isDone()) afterDone();
+    else               afterYield();   // park 등으로 얼려진 경우
+}</code></pre>
+    <p><code>mount()/unmount()</code>는 이 파일 전체에서 <b>오직 한 곳</b>에서만 불립니다.
+    블로킹된 가상 스레드는 자는 OS 스레드가 아니라 <b class="go">힙에 놓인 자바 객체</b>입니다.</p>
+  </section>
+
+  <!-- 4. 스택의 실체 -->
+  <section class="scene">
+    <p class="num">4</p>
+    <h2>스택의 실체 - Continuation 과 StackChunk</h2>
+    <svg viewBox="0 0 720 230" role="img" aria-label="플랫폼 스레드와 가상 스레드의 스택 위치 비교">
+      <rect x="20" y="26" width="300" height="170" rx="12" fill="var(--kitchen)" opacity=".18"/>
+      <text x="170" y="52" text-anchor="middle" font-size="15" fill="var(--ink)">플랫폼 스레드</text>
+      <rect x="60" y="70" width="100" height="44" rx="8" fill="var(--waiter)"/>
+      <text x="110" y="97" text-anchor="middle" font-size="14" fill="var(--card)">Thread</text>
+      <line x1="160" y1="92" x2="208" y2="92" stroke="var(--sub)" stroke-width="2.5" marker-end="url(#arr)"/>
+      <rect x="212" y="66" width="88" height="52" rx="8" fill="var(--code-bg)" stroke="var(--line)"/>
+      <text x="256" y="88" text-anchor="middle" font-size="13" fill="var(--ink)">OS 스택</text>
+      <text x="256" y="106" text-anchor="middle" font-size="11" fill="var(--sub)">고정 크기·위치</text>
+      <text x="170" y="160" text-anchor="middle" font-size="12.5" fill="var(--sub)">스택이 OS 에 있으니</text>
+      <text x="170" y="178" text-anchor="middle" font-size="12.5" fill="var(--sub)">스레드도 OS 에 묶인다</text>
+      <rect x="360" y="26" width="340" height="170" rx="12" fill="var(--go)" opacity=".12"/>
+      <text x="530" y="52" text-anchor="middle" font-size="15" fill="var(--ink)">가상 스레드</text>
+      <rect x="372" y="70" width="124" height="44" rx="8" fill="var(--waiter)"/>
+      <text x="434" y="97" text-anchor="middle" font-size="13" class="mono" fill="var(--card)">VirtualThread</text>
+      <line x1="490" y1="92" x2="520" y2="92" stroke="var(--sub)" stroke-width="2.5" marker-end="url(#arr)"/>
+      <rect x="524" y="70" width="106" height="44" rx="8" fill="var(--code-bg)" stroke="var(--line)"/>
+      <text x="577" y="97" text-anchor="middle" font-size="13" class="mono" fill="var(--ink)">Continuation</text>
+      <line x1="577" y1="114" x2="577" y2="140" stroke="var(--sub)" stroke-width="2.5" marker-end="url(#arr)"/>
+      <rect x="514" y="144" width="126" height="40" rx="8" fill="var(--ticket)"/>
+      <text x="577" y="162" text-anchor="middle" font-size="13" class="mono" fill="var(--ticket-ink)">StackChunk</text>
+      <text x="577" y="177" text-anchor="middle" font-size="11" fill="var(--ticket-ink)">GC 가 관리하는 힙 객체</text>
+      <text x="435" y="150" text-anchor="middle" font-size="12" fill="var(--sub)">freeze / thaw 로</text>
+      <text x="435" y="167" text-anchor="middle" font-size="12" fill="var(--sub)">carrier 와 힙 사이 이동</text>
+      <text x="360" y="216" font-size="12.5" fill="var(--sub)">StackChunk 클래스엔 프레임 필드가 없다. 주석: "appended here by the VM"</text>
+    </svg>
+    <p>가상 스레드가 싼 이유는 스택을 <b class="tk">옮길 수 있는 객체</b>로 만들었기 때문입니다.
+    동결 알고리즘은 자바가 아니라 hotspot C++ 에 있습니다.</p>
+    <p class="cap"><code>doYield()</code>는 <code>@IntrinsicCandidate</code> native. 실체는 <code>continuationFreezeThaw.cpp</code>. 자바 소스만 읽으면 여기서 막히는 게 정상입니다.</p>
+  </section>
+
+  <!-- 5. pinning -->
+  <section class="scene">
+    <p class="num">5 · 실패 모드</p>
+    <h2>PINNED - 동결이 실패할 때</h2>
+    <svg viewBox="0 0 720 230" role="img" aria-label="동결 실패 분기와 JDK 버전 타임라인">
+      <rect x="20" y="20" width="180" height="50" rx="9" fill="var(--code-bg)" stroke="var(--line)"/>
+      <text x="110" y="42" text-anchor="middle" font-size="14" fill="var(--ink)">스택 동결 시도</text>
+      <text x="110" y="60" text-anchor="middle" font-size="12" class="mono" fill="var(--sub)">freeze</text>
+      <line x1="200" y1="35" x2="260" y2="35" stroke="var(--go)" stroke-width="2.5" marker-end="url(#arr)"/>
+      <text x="230" y="26" text-anchor="middle" font-size="12" fill="var(--go)">성공</text>
+      <rect x="264" y="14" width="150" height="40" rx="9" fill="var(--ticket)"/>
+      <text x="339" y="39" text-anchor="middle" font-size="14" fill="var(--ticket-ink)">PARKED - carrier 반납</text>
+      <line x1="200" y1="58" x2="260" y2="76" stroke="var(--stop)" stroke-width="2.5" marker-end="url(#arr)"/>
+      <text x="228" y="82" text-anchor="middle" font-size="12" fill="var(--stop)">실패</text>
+      <rect x="264" y="62" width="260" height="40" rx="9" fill="var(--stop)"/>
+      <text x="394" y="87" text-anchor="middle" font-size="14" fill="var(--card)">PINNED - carrier 를 붙잡고 U.park</text>
+      <line x1="60" y1="150" x2="660" y2="150" stroke="var(--line)" stroke-width="3"/>
+      <circle cx="140" cy="150" r="7" fill="var(--stop)"/>
+      <text x="140" y="132" text-anchor="middle" font-size="14" fill="var(--ink)">JDK 21</text>
+      <text x="140" y="176" text-anchor="middle" font-size="12" fill="var(--stop)">synchronized = pin</text>
+      <text x="140" y="193" text-anchor="middle" font-size="12" fill="var(--sub)">실측: 다른 vthread 진행 0회</text>
+      <circle cx="400" cy="150" r="7" fill="var(--go)"/>
+      <text x="400" y="132" text-anchor="middle" font-size="14" fill="var(--ink)">JDK 24 - JEP 491</text>
+      <text x="400" y="176" text-anchor="middle" font-size="12" fill="var(--go)">synchronized = unmount</text>
+      <text x="400" y="193" text-anchor="middle" font-size="12" fill="var(--sub)">모니터 경합도 carrier 반납</text>
+      <circle cx="600" cy="150" r="7" fill="var(--go)"/>
+      <text x="600" y="132" text-anchor="middle" font-size="14" fill="var(--ink)">JDK 25</text>
+      <text x="600" y="176" text-anchor="middle" font-size="12" fill="var(--sub)">실측: 27회 진행</text>
+    </svg>
+    <div class="chips">
+      <span class="chip bad">아직 pin: native 호출 (JNI)</span>
+      <span class="chip bad">synchronized native 메서드</span>
+      <span class="chip bad">클래스 로딩·&lt;clinit&gt; 중 블로킹</span>
+      <span class="chip">진단: JFR jdk.VirtualThreadPinned</span>
+      <span class="chip">-Djdk.tracePinnedThreads 는 제거됨</span>
+    </div>
+    <p style="margin-top:12px">pin 되면 가상 스레드의 유일한 장점을 잃고 <b class="stop">1번 그림으로 되돌아갑니다</b>.
+    다행히 JDK 24부터 가장 흔한 원인(synchronized)이 사라졌습니다.</p>
+  </section>
+
+  <!-- 6. 정산 -->
+  <section class="scene">
+    <p class="num">6 · 정산</p>
+    <h2>이득이 나는 곳, 안 나는 곳</h2>
+    <svg viewBox="0 0 720 300" role="img" aria-label="워크로드 세 종의 플랫폼 대 가상 스레드 비교 막대">
+      <text x="20" y="34" font-size="15" fill="var(--ink)">각 1ms 블로킹 × 2만</text>
+      <rect x="240" y="20" width="430" height="20" rx="5" fill="var(--waiter)"/>
+      <text x="664" y="35" text-anchor="end" font-size="13" fill="var(--card)">플랫폼 풀 132ms</text>
+      <rect x="240" y="46" width="46" height="20" rx="5" fill="var(--go)"/>
+      <text x="296" y="61" font-size="13" fill="var(--go)">가상 14ms · 9.4배</text>
+      <text x="20" y="134" font-size="15" fill="var(--ink)">CPU 연산만 × 2만</text>
+      <rect x="240" y="120" width="430" height="20" rx="5" fill="var(--waiter)"/>
+      <text x="664" y="135" text-anchor="end" font-size="13" fill="var(--card)">387ms</text>
+      <rect x="240" y="146" width="420" height="20" rx="5" fill="var(--sub)"/>
+      <text x="664" y="161" text-anchor="end" font-size="13" fill="var(--card)">378ms · 1.02배</text>
+      <text x="20" y="234" font-size="15" fill="var(--ink)">빈 스레드 1만 개 생성</text>
+      <rect x="240" y="220" width="430" height="20" rx="5" fill="var(--waiter)"/>
+      <text x="664" y="235" text-anchor="end" font-size="13" fill="var(--card)">342ms</text>
+      <rect x="240" y="246" width="5" height="20" rx="2" fill="var(--go)"/>
+      <text x="256" y="261" font-size="13" fill="var(--go)">3ms · 114배</text>
+      <text x="20" y="292" font-size="12.5" fill="var(--sub)">14코어 macOS · JDK 25.0.4 실측. JMH 아님, 풀 생성 비용 포함 - 한계는 raw 파일 참고</text>
+    </svg>
+    <p><b>가상 스레드가 사는 것은 대기 시간을 병렬로 겹치는 능력입니다.</b>
+    아무도 블로킹하지 않으면(CPU 바운드) carrier 수 = 코어 수 그대로라 이득이 <b class="stop">0</b> 입니다.</p>
+    <p class="cap">JEP 444: 처리량(throughput)을 위한 것이지 지연 시간(latency)을 위한 것이 아니다.</p>
+  </section>
+
+  <!-- 7. 요약과 연결 -->
+  <section class="scene">
+    <p class="num">7</p>
+    <h2>가져갈 것 세 줄</h2>
+    <table class="map">
+      <tr><td>풀링</td><td>가상 스레드는 풀링하지 않는다. 쓰고 버린다 (JEP 444 명시)</td></tr>
+      <tr><td>적용 판단</td><td>블로킹이 많으면 이득, CPU 바운드면 이득 0. 스레드 수로 블로킹 처리량을 사려던 곳이 교체 대상</td></tr>
+      <tr><td>관측</td><td>스레드 덤프에서 <code>Thread.sleep</code> 은 <code>PARKED</code> 로 보인다. pin 은 JFR <code>jdk.VirtualThreadPinned</code> 로 잡는다</td></tr>
+    </table>
+
+  </section>
+</main>
+</body>
+</html>

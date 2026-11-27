@@ -35,9 +35,9 @@
   a { color: var(--core); }
   code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: .92em; }
   .sub { color: var(--sub); }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 18px; }
-  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 18px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  .card { min-width: 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
   .span2 { grid-column: 1 / -1; }
   label.row { display: grid; grid-template-columns: 150px 1fr 64px; align-items: center; gap: 10px; margin: 8px 0; }
   label.row .val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
@@ -86,6 +86,16 @@
   .bar.slow { background: var(--stop); }
   footer { margin-top: 26px; padding-top: 14px; border-top: 1px solid var(--line); display: flex; gap: 18px; flex-wrap: wrap; font-size: 14px; }
   ul.notes { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
+  @media (max-width: 600px) {
+    main { padding: 16px 12px 40px; overflow-wrap: anywhere; }
+    .card { padding: 14px 12px; }
+    label.row { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; margin: 12px 0; }
+    label.row > span:first-child, label.row select { grid-column: 1 / -1; }
+    label.row select { width: 100%; min-width: 0; }
+    label.row select + span { display: none; }
+    input[type=range] { min-width: 0; margin: 0; }
+    .bars { grid-template-columns: auto minmax(0, 1fr) auto; }
+  }
 </style>
 </head>
 <body>

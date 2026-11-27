@@ -28,6 +28,16 @@ a:hover h2{text-decoration:underline;text-underline-offset:.2em}
 .job{width:.68rem;height:1.35rem;background:currentColor;border-radius:.12rem}
 .kind{font-size:.85rem;font-weight:650;color:var(--muted)}
 h2{font-size:clamp(1.35rem,3vw,1.75rem);letter-spacing:-.035em;line-height:1.35;margin:0;text-wrap:balance}
+.filters{display:flex;flex-wrap:wrap;align-items:end;gap:.8rem 1rem;margin:0 0 1.6rem}
+.filters[hidden],[hidden]{display:none}
+.filters label{display:grid;gap:.25rem;flex:1 1 10rem;min-width:0;color:var(--muted);font-size:.9rem}
+.filters label:first-child{flex-grow:2}
+.filters input,.filters select,.filters button{font:inherit;font-size:1rem;color:var(--ink);background:white;border:1px solid var(--line);border-radius:.4rem;padding:.6rem;min-height:44px;min-width:0;width:100%}
+.filters button{width:auto;cursor:pointer}
+.tags{display:flex;gap:.3rem .65rem;flex-wrap:wrap;color:#3f685b;font-size:.85rem}
+.tags span::before{content:"#"}
+#result{margin:0 0 .8rem}
+@media(max-width:36rem){.filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.filters label:first-child{grid-column:1/-1}.filters button{justify-self:start}header{padding-bottom:1.5rem}}
 </style>
 </head>
 <body><main>
@@ -36,19 +46,78 @@ h2{font-size:clamp(1.35rem,3vw,1.75rem);letter-spacing:-.035em;line-height:1.35;
 <h1>학습 서재</h1>
 <p>그림을 넘기고 조건을 바꾸며 소프트웨어의 동작을 살펴보세요.</p>
 </header>
+<form class="filters" role="search" hidden>
+<label>검색<input id="search" type="search" placeholder="제목, 설명, 태그"></label>
+<label>카테고리<select id="category"><option value="">전체 카테고리</option></select></label>
+<label>태그<select id="tag"><option value="">전체 태그</option></select></label>
+<button type="reset">초기화</button>
+</form>
+<p id="result" role="status" hidden></p>
 <nav aria-label="학습 작품">
 <a href="tls-mtls-deck.html">
 <div class="cover" aria-hidden="true"><span class="endpoint">C</span><span class="wire">⟷</span><span class="endpoint">S</span></div>
-<span class="kind">네트워크 보안 / 그림책</span>
+<span class="kind"><span class="category">네트워크 보안</span> / 그림책</span>
 <h2>TLS와 mTLS에서는 누가 누구를 확인할까?</h2>
 <p>핸드셰이크를 한 단계씩 넘기며 인증서가 오가는 순간을 따라갑니다.</p>
+<span class="tags"><span>TLS</span><span>mTLS</span><span>인증서</span></span>
 </a>
 <a href="thread-pool-deck.html">
 <div class="cover queue" aria-hidden="true"><span class="jobs"><i class="job"></i><i class="job"></i><i class="job"></i></span><span class="wire">→</span><span class="worker">T₁</span><span class="worker">T₂</span></div>
-<span class="kind">JVM 동시성 / 시뮬레이터</span>
+<span class="kind"><span class="category">JVM 동시성</span> / 시뮬레이터</span>
 <h2>스레드 풀의 상한을 올려도 왜 스레드가 늘지 않을까?</h2>
 <p>큐 크기를 바꾸고 작업을 넣어 어떤 작업이 대기하고 언제 새 스레드가 생기는지 확인합니다.</p>
+<span class="tags"><span>Java</span><span>스레드 풀</span><span>작업 큐</span></span>
+</a>
+<a href="virtual-threads-deck.html">
+<div class="cover" aria-hidden="true"><span class="endpoint">VT</span><span class="wire">⇄</span><span class="worker">T</span></div>
+<span class="kind"><span class="category">JVM 동시성</span> / 그림책</span>
+<h2>가상 스레드가 기다릴 때 실행 스레드는 무엇을 할까?</h2>
+<p>플랫폼 스레드와 가상 스레드의 실행 과정을 따라가며 블로킹과 처리량의 관계를 살펴봅니다.</p>
+<span class="tags"><span>Java</span><span>가상 스레드</span><span>블로킹</span></span>
 </a>
 </nav>
-</main></body>
+</main>
+<script>
+const filters = document.querySelector(".filters");
+const result = document.querySelector("#result");
+const cards = [...document.querySelectorAll('nav a')].map(link => ({
+  link,
+  category: link.querySelector(".category").textContent,
+  tags: [...link.querySelectorAll(".tags span")].map(tag => tag.textContent),
+  text: link.innerText.toLocaleLowerCase()
+}));
+const search = document.querySelector("#search");
+const category = document.querySelector("#category");
+const tag = document.querySelector("#tag");
+for (const [select, values] of [[category, cards.map(card => card.category)], [tag, cards.flatMap(card => card.tags)]]) {
+  for (const value of [...new Set(values)].sort((a, b) => a.localeCompare(b, "ko"))) {
+    select.add(new Option(value, value));
+  }
+}
+const fields = [search, category, tag];
+const params = new URLSearchParams(location.search);
+for (const field of fields) field.value = params.get(field.id) || "";
+function filterCards() {
+  const query = search.value.trim().toLocaleLowerCase();
+  let count = 0;
+  for (const card of cards) {
+    card.link.hidden = !(card.text.includes(query) && (!category.value || card.category === category.value)
+      && (!tag.value || card.tags.includes(tag.value)));
+    if (!card.link.hidden) count++;
+  }
+  result.textContent = count ? `작품 ${count}편` : "조건에 맞는 작품이 없습니다.";
+  const url = new URL(location.href);
+  for (const field of fields) {
+    if (field.value) url.searchParams.set(field.id, field.value);
+    else url.searchParams.delete(field.id);
+  }
+  if (location.protocol !== "file:" && url.href !== location.href) history.replaceState(null, "", url);
+}
+filters.hidden = result.hidden = false;
+filters.addEventListener("input", filterCards);
+filters.addEventListener("submit", event => event.preventDefault());
+filters.addEventListener("reset", () => requestAnimationFrame(filterCards));
+filterCards();
+</script>
+</body>
 </html>

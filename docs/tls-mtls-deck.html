@@ -50,13 +50,13 @@ svg text.t-lock { fill: var(--lock); }
 code, pre { font-family: var(--mono); font-size: .86rem; }
 :not(pre) > code { background: var(--sheet); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; overflow-wrap: anywhere; }
 pre { margin: 0; background: var(--sheet); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto; line-height: 1.5; }
-.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 16px; }
 .pair > * { min-width: 0; }
 .bytes { border-radius: 8px; padding: 12px 14px; font-family: var(--mono); font-size: .86rem; overflow-wrap: anywhere; line-height: 1.5; }
 .bytes b { display: block; font-family: var(--body); font-size: .85rem; margin-bottom: 4px; }
 .is-plain { background: var(--plain-soft); color: var(--plain); }
 .is-lock { background: var(--lock-soft); color: var(--lock); }
-.promises { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+.promises { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 16px; }
 .promises > div { display: grid; gap: 2px; align-content: start; }
 .promises strong { font-family: var(--display); font-weight: 400; font-size: 1.3rem; }
 button { font: inherit; color: inherit; cursor: pointer; }
@@ -99,6 +99,13 @@ footer { border-top: 1px solid var(--line); padding-top: 16px; display: grid; ga
 .sim-controls { display: flex; flex-wrap: wrap; gap: 8px; }
 .sim-controls button { padding: 8px 14px; border: 2px solid var(--ink); border-radius: 8px; background: transparent; font-weight: 600; }
 .sim-controls button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+@media (max-width: 600px) {
+  .book { gap: 36px; padding-block: 20px 44px; overflow-wrap: anywhere; }
+  .picture { padding: 8px; }
+  table { min-width: 0; table-layout: fixed; }
+  th, td { padding: 6px 4px; overflow-wrap: anywhere; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+}
 </style>
 </head>
 <body>
