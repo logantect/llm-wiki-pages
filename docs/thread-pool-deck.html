@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>스레드 풀 파라미터 시뮬레이터</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --ground: #F6F4ED; --card: #FFFFFF; --ink: #2A2B26; --sub: #6B6A60; --line: #E3E0D4;
+    --core: #33506B; --core-soft: #DCE6F0; --extra: #8A6D3B; --extra-soft: #F1E6D2;
+    --queue: #C9A227; --queue-soft: #FBF1CF; --stop: #C4543A; --go: #3E8E5A; --hi: #FFE9A8;
+    --code-bg: #F0EDE3; --btn: #33506B; --btn-ink: #FFFFFF;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #211F1A; --card: #2B2924; --ink: #EDEAE0; --sub: #A9A69A; --line: #3C3A32;
+      --core: #7FA3C4; --core-soft: #2E3D4C; --extra: #D0A96A; --extra-soft: #46392A;
+      --queue: #E6B32E; --queue-soft: #4A3F1E; --stop: #D97D66; --go: #5FB380; --hi: #5A4A12;
+      --code-bg: #1C1B16; --btn: #7FA3C4; --btn-ink: #1C1B16;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #211F1A; --card: #2B2924; --ink: #EDEAE0; --sub: #A9A69A; --line: #3C3A32;
+    --core: #7FA3C4; --core-soft: #2E3D4C; --extra: #D0A96A; --extra-soft: #46392A;
+    --queue: #E6B32E; --queue-soft: #4A3F1E; --stop: #D97D66; --go: #5FB380; --hi: #5A4A12;
+    --code-bg: #1C1B16; --btn: #7FA3C4; --btn-ink: #1C1B16;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Segoe UI", sans-serif; line-height: 1.55; font-size: 15px; }
+  main { max-width: 1100px; margin: 0 auto; padding: 28px 20px 64px; }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  h2 { font-size: 17px; margin: 0 0 12px; letter-spacing: .01em; }
+  p { margin: 0 0 10px; }
+  a { color: var(--core); }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: .92em; }
+  .sub { color: var(--sub); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 18px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .span2 { grid-column: 1 / -1; }
+  label.row { display: grid; grid-template-columns: 150px 1fr 64px; align-items: center; gap: 10px; margin: 8px 0; }
+  label.row .val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  input[type=range] { width: 100%; accent-color: var(--core); }
+  .dead { opacity: .4; }
+  .radios { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 6px 0 4px; }
+  .radios label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+  select { font: inherit; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+  .presets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  button { font: inherit; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--btn); color: var(--btn-ink); border-color: var(--btn); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .warn { margin-top: 10px; padding: 10px 12px; border-left: 4px solid var(--stop); background: var(--queue-soft); border-radius: 6px; font-size: 14px; }
+  .warn.ok { border-left-color: var(--go); background: var(--core-soft); }
+  .floor h3 { font-size: 14px; margin: 12px 0 6px; color: var(--sub); font-weight: 600; }
+  .slots { display: flex; flex-wrap: wrap; gap: 8px; min-height: 44px; }
+  .slot { min-width: 64px; height: 44px; border-radius: 8px; border: 2px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .slot.core { border-color: var(--core); background: var(--core-soft); }
+  .slot.extra { border-style: dashed; border-color: var(--extra); background: var(--extra-soft); }
+  .slot.idle { opacity: .55; font-style: italic; }
+  .slot.q { border-color: var(--queue); background: var(--queue-soft); }
+  .slot.empty { border-style: dotted; color: var(--sub); }
+  .slot.new { animation: pop .5s ease-out; }
+  @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .counters { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; }
+  .counter { padding: 6px 10px; border-radius: 8px; background: var(--code-bg); font-size: 14px; }
+  .counter b { font-variant-numeric: tabular-nums; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .busycaller { margin-left: 6px; color: var(--stop); font-weight: 600; display: none; }
+  ol.log { list-style: none; padding: 0; margin: 0; font-size: 14px; }
+  ol.log li { padding: 6px 0; border-bottom: 1px dashed var(--line); }
+  ol.log li:first-child { background: var(--hi); border-radius: 6px; padding: 6px 8px; }
+  ol.log li.faint { color: var(--sub); font-style: italic; }
+  ol.log .step { display: inline-block; min-width: 46px; font-weight: 600; color: var(--core); }
+  svg { width: 100%; height: auto; }
+  svg text { font-family: inherit; font-size: 13px; fill: var(--ink); }
+  svg .node { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+  svg .dec { fill: var(--card); stroke: var(--sub); stroke-width: 1.5; }
+  svg .edge { stroke: var(--sub); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+  svg .lbl { font-size: 12px; fill: var(--sub); }
+  svg .on { fill: var(--hi); stroke: var(--stop); stroke-width: 2.5; }
+  svg .core-node { stroke: var(--core); }
+  svg .extra-node { stroke: var(--extra); stroke-dasharray: 5 3; }
+  .bars { display: grid; grid-template-columns: 90px 1fr 70px; gap: 6px 10px; align-items: center; margin-top: 8px; font-size: 14px; }
+  .bar { height: 14px; border-radius: 4px; background: var(--core); }
+  .bar.slow { background: var(--stop); }
+  footer { margin-top: 26px; padding-top: 14px; border-top: 1px solid var(--line); display: flex; gap: 18px; flex-wrap: wrap; font-size: 14px; }
+  ul.notes { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+<nav aria-label="서재"><a href="./">← 학습 서재</a></nav>
+  <h1>스레드 풀 파라미터 시뮬레이터</h1>
+  <p class="sub">질문 하나. <b>maximumPoolSize 를 올렸는데 왜 스레드가 안 늘어나는가.</b>
+    파라미터를 바꿔가며 손님(작업)을 던져보세요. 매니저(<code>execute()</code>)가 어느 길을 탔는지 흐름도에 불이 들어옵니다.
+</p>
+
+  <div class="grid">
+    <section class="card" id="params">
+      <h2>1. 파라미터 넷</h2>
+      <label class="row"><span>corePoolSize<br><span class="sub">정직원 수</span></span>
+        <input type="range" id="core" min="0" max="8" value="3"><span class="val" id="coreVal">3</span></label>
+      <div class="radios" id="qtype">
+        <span style="min-width:150px">큐<br><span class="sub">대기 명단</span></span>
+        <label><input type="radio" name="qtype" value="unbounded"> 무제한 (LinkedBlockingQueue)</label>
+        <label><input type="radio" name="qtype" value="bounded" checked> 유한 (ArrayBlockingQueue)</label>
+        <label><input type="radio" name="qtype" value="sync"> 용량 0 (SynchronousQueue)</label>
+      </div>
+      <label class="row" id="qcapRow"><span>큐 크기<br><span class="sub">명단 칸 수</span></span>
+        <input type="range" id="qcap" min="1" max="8" value="3"><span class="val" id="qcapVal">3</span></label>
+      <label class="row" id="maxRow"><span>maximumPoolSize<br><span class="sub">임시직 포함 상한</span></span>
+        <input type="range" id="max" min="1" max="12" value="5"><span class="val" id="maxVal">5</span></label>
+      <label class="row"><span>거부 정책<br><span class="sub">문 앞에서</span></span>
+        <select id="policy">
+          <option value="abort">AbortPolicy (기본값, 예외)</option>
+          <option value="caller">CallerRunsPolicy (제출자가 직접)</option>
+          <option value="discard">DiscardPolicy (조용히 버림)</option>
+          <option value="oldest">DiscardOldestPolicy (가장 오래된 것 버림)</option>
+        </select><span></span></label>
+      <div class="presets">
+        <span class="sub" style="align-self:center">강의 표 재현:</span>
+        <button data-preset="fixed">newFixedThreadPool 모양</button>
+        <button data-preset="sync">SynchronousQueue</button>
+        <button data-preset="bounded">유한 큐 3칸</button>
+      </div>
+      <div class="warn" id="warn"></div>
+    </section>
+
+    <section class="card" id="flow">
+      <h2>2. 판단 순서</h2>
+      <svg viewBox="0 0 470 540" role="img" aria-label="execute 의 3단계 판단 흐름도">
+        <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--sub)"/></marker></defs>
+        <rect id="n_exec" class="node" x="150" y="8" width="170" height="40" rx="8"/>
+        <text x="235" y="33" text-anchor="middle">execute(task) 손님 도착</text>
+        <path class="edge" d="M235,48 L235,72"/>
+        <polygon id="d1" class="dec" points="235,72 335,112 235,152 135,112"/>
+        <text x="235" y="107" text-anchor="middle">스레드 수 &lt; core</text>
+        <text x="235" y="125" text-anchor="middle" class="lbl">정직원이 남는가</text>
+        <path class="edge" d="M135,112 L100,112 L100,168"/>
+        <text x="112" y="145" class="lbl">예</text>
+        <rect id="n_core" class="node core-node" x="20" y="168" width="160" height="42" rx="8"/>
+        <text x="100" y="194" text-anchor="middle">새 정직원 스레드</text>
+        <path class="edge" d="M235,152 L235,196"/>
+        <text x="245" y="178" class="lbl">아니오</text>
+        <polygon id="d2" class="dec" points="235,196 335,236 235,276 135,236"/>
+        <text x="235" y="231" text-anchor="middle">큐 offer 성공</text>
+        <text x="235" y="249" text-anchor="middle" class="lbl">명단에 적을 수 있나</text>
+        <path class="edge" d="M135,236 L100,236 L100,292"/>
+        <text x="112" y="269" class="lbl">예</text>
+        <rect id="n_queue" class="node" x="20" y="292" width="160" height="42" rx="8"/>
+        <text x="100" y="318" text-anchor="middle">큐에서 대기. 증원 없음</text>
+        <path class="edge" d="M235,276 L235,320"/>
+        <text x="245" y="302" class="lbl">아니오. 꽉 참</text>
+        <polygon id="d3" class="dec" points="235,320 335,360 235,400 135,360"/>
+        <text x="235" y="355" text-anchor="middle">스레드 수 &lt; max</text>
+        <text x="235" y="373" text-anchor="middle" class="lbl">임시직 부를 수 있나</text>
+        <path class="edge" d="M135,360 L100,360 L100,416"/>
+        <text x="112" y="393" class="lbl">예</text>
+        <rect id="n_extra" class="node extra-node" x="20" y="416" width="160" height="42" rx="8"/>
+        <text x="100" y="442" text-anchor="middle">그제서야 임시직 스레드</text>
+        <path class="edge" d="M335,360 L370,360 L370,416"/>
+        <text x="340" y="393" class="lbl">아니오</text>
+        <rect id="n_reject" class="node" x="290" y="416" width="160" height="42" rx="8"/>
+        <text x="370" y="442" text-anchor="middle">거부 정책 발동</text>
+        <text x="235" y="500" text-anchor="middle" class="lbl">javadoc: "always prefers queuing a request rather than adding a new thread"</text>
+        <text x="235" y="520" text-anchor="middle" class="lbl">정직원이 다 찼으면 무조건 명단부터. 임시직은 명단이 꽉 차야.</text>
+      </svg>
+    </section>
+
+    <section class="card floor span2" id="floor">
+      <h2>3. 식당 현황</h2>
+      <h3>정직원 (core 스레드)</h3>
+      <div class="slots" id="coreSlots"></div>
+      <h3>임시직 (core 를 넘어 만든 스레드)</h3>
+      <div class="slots" id="extraSlots"></div>
+      <h3>대기 명단 (큐)</h3>
+      <div class="slots" id="queueSlots"></div>
+      <h3>문 앞</h3>
+      <div class="counters">
+        <span class="counter">예외로 거부 <b id="cRejected">0</b></span>
+        <span class="counter">제출자가 직접 실행 <b id="cCaller">0</b></span>
+        <span class="counter">조용히 버려짐 <b id="cDiscarded">0</b></span>
+        <span class="counter">완료 <b id="cDone">0</b></span>
+      </div>
+      <div class="actions">
+        <button class="primary" id="submit1">손님 1 제출</button>
+        <button class="primary" id="submit5">손님 5 제출</button>
+        <button id="done1">작업 1개 완료</button>
+        <button id="doneAll">전부 완료</button>
+        <button id="reset">리셋</button>
+        <span class="busycaller" id="busyCaller">제출한 스레드가 직접 서빙 중. 새 제출이 막힙니다</span>
+      </div>
+    </section>
+
+    <section class="card" id="logCard">
+      <h2>4. 매니저의 판단 기록</h2>
+      <ol class="log" id="log"><li class="faint">아직 손님이 없습니다. 제출해보세요.</li></ol>
+    </section>
+
+    <section class="card" id="notes">
+      <h2>5. 이 덱이 모델하지 않는 것</h2>
+      <ul class="notes">
+        <li><code>keepAliveTime</code>, <code>allowCoreThreadTimeOut</code>. 위키에 없어서 넣지 않았습니다. 그래서 여기서는 놀고 있는 임시직도 사라지지 않습니다.</li>
+        <li>작업이 저절로 끝나는 시간. 완료는 버튼으로 직접 누릅니다. 블로킹이 길수록 완료 버튼을 늦게 누른다고 생각하면 됩니다.</li>
+        <li><code>SynchronousQueue</code>와 <code>DiscardOldestPolicy</code> 조합. 버릴 명단이 없는 조합이라 선택을 막았습니다.</li>
+        <li>큐가 꽉 찼을 때 <code>offer</code>가 실패한다는 것과, 정직원 수 판정이 바쁜 스레드가 아니라 <b>존재하는 스레드 수</b>라는 것은 강의와 같은 모델입니다.</li>
+      </ul>
+      <h2 style="margin-top:16px">실측, 강의에서 옮김</h2>
+      <p class="sub">각 1ms 블로킹 태스크 2만 개. 14코어 macOS, JDK 25.0.4. 풀을 5배로 키우니 1.5배 느려졌습니다.</p>
+      <div class="bars">
+        <span>풀 200</span><div class="bar" style="width:67%"></div><span>132ms</span>
+        <span>풀 1000</span><div class="bar slow" style="width:100%"></div><span>197ms</span>
+      </div>
+    </section>
+  </div>
+
+
+</main>
+
+<script>
+(function () {
+  var S = { core: 3, max: 5, qtype: 'bounded', qcap: 3, policy: 'abort',
+            threads: [], queue: [], seq: 0, rejected: 0, caller: 0, discarded: 0, done: 0, log: [] };
+  var $ = function (id) { return document.getElementById(id); };
+  var els = { core: $('core'), max: $('max'), qcap: $('qcap'), policy: $('policy'),
+              coreVal: $('coreVal'), maxVal: $('maxVal'), qcapVal: $('qcapVal'), warn: $('warn'),
+              coreSlots: $('coreSlots'), extraSlots: $('extraSlots'), queueSlots: $('queueSlots'),
+              log: $('log'), busy: $('busyCaller') };
+  var NODES = ['n_exec', 'd1', 'n_core', 'd2', 'n_queue', 'd3', 'n_extra', 'n_reject'];
+
+  function syncControls() {
+    els.core.value = S.core; els.max.value = S.max; els.qcap.value = S.qcap; els.policy.value = S.policy;
+    els.coreVal.textContent = S.core; els.maxVal.textContent = S.max; els.qcapVal.textContent = S.qcap;
+    var radios = document.querySelectorAll('input[name=qtype]');
+    for (var i = 0; i < radios.length; i++) radios[i].checked = radios[i].value === S.qtype;
+    $('qcapRow').style.display = S.qtype === 'bounded' ? '' : 'none';
+    $('maxRow').classList.toggle('dead', S.qtype === 'unbounded');
+    var oldest = els.policy.querySelector('option[value=oldest]');
+    oldest.disabled = S.qtype === 'sync';
+    if (oldest.disabled && S.policy === 'oldest') { S.policy = 'abort'; els.policy.value = 'abort'; }
+    if (S.qtype === 'unbounded') {
+      els.warn.className = 'warn';
+      els.warn.innerHTML = '<b>maximumPoolSize 는 지금 죽은 파라미터입니다.</b> 무제한 큐는 offer 가 절대 실패하지 않아 3단계에 도달할 수 없습니다. 스레드는 ' + S.core + '개에서 멈춥니다. javadoc: "the value of the maximumPoolSize therefore doesn\'t have any effect."';
+    } else if (S.qtype === 'sync') {
+      els.warn.className = 'warn ok';
+      els.warn.innerHTML = '용량 0 큐는 놀고 있는 스레드가 있을 때만 offer 가 성공합니다. 대개 실패해서 매번 3단계로 가고, 스레드가 <b>maximumPoolSize ' + S.max + '개까지 빠르게</b> 늘어납니다.';
+    } else {
+      els.warn.className = 'warn ok';
+      els.warn.innerHTML = '유한 큐는 명단 ' + S.qcap + '칸이 <b>꽉 찬 다음에야</b> 임시직을 부릅니다. 큐 크기와 풀 크기를 함께 정해야 하는 이유입니다.';
+    }
+  }
+
+  function addLog(text, cls) {
+    S.log.unshift({ t: text, c: cls || '' });
+    if (S.log.length > 12) S.log.pop();
+  }
+
+  function highlight(ids) {
+    for (var i = 0; i < NODES.length; i++) $(NODES[i]).classList.remove('on');
+    ids.forEach(function (id, k) { setTimeout(function () { $(id).classList.add('on'); }, 120 * k); });
+  }
+
+  function idleThread() { for (var i = 0; i < S.threads.length; i++) if (S.threads[i].task === null) return S.threads[i]; return null; }
+  function busyThread() { for (var i = 0; i < S.threads.length; i++) if (S.threads[i].task !== null) return S.threads[i]; return null; }
+  function addThread(kind, task) { var th = { id: S.threads.length + 1, kind: kind, task: task, fresh: true }; S.threads.push(th); return th; }
+
+  function dispatch() {
+    var th; var moved = [];
+    while (S.queue.length && (th = idleThread())) { th.task = S.queue.shift(); moved.push(th); }
+    return moved;
+  }
+
+  function submitOne() {
+    var t = ++S.seq;
+    if (S.threads.length < S.core) {
+      addThread('core', t);
+      highlight(['n_exec', 'd1', 'n_core']);
+      addLog('<span class="step">#' + t + '</span> 1단계. 스레드 ' + (S.threads.length - 1) + ' &lt; core ' + S.core + ' 이므로 <b>새 정직원 스레드</b>를 만들어 바로 실행.');
+      return;
+    }
+    var idle = idleThread();
+    var offered = false, how = '';
+    if (S.qtype === 'unbounded') { S.queue.push(t); offered = true; how = '무제한 큐라 항상 성공'; }
+    else if (S.qtype === 'bounded') { if (S.queue.length < S.qcap) { S.queue.push(t); offered = true; how = '명단 ' + S.queue.length + '/' + S.qcap; } else how = '명단 ' + S.qcap + '/' + S.qcap + ' 꽉 참'; }
+    else { if (idle) { idle.task = t; offered = true; how = '놀던 스레드에게 직접 건넴'; } else how = '받아줄 놀던 스레드 없음'; }
+    if (offered) {
+      var moved = dispatch();
+      highlight(['n_exec', 'd1', 'd2', 'n_queue']);
+      var tail = moved.length ? ' 놀던 스레드 ' + moved.map(function (m) { return 'T' + m.id; }).join(', ') + ' 가 명단에서 바로 집어감.' : ' 스레드는 <b>늘지 않음</b>.';
+      addLog('<span class="step">#' + t + '</span> 1단계 아니오 (스레드 ' + S.threads.length + ' ≥ core ' + S.core + '). 2단계 offer 성공, ' + how + '.' + tail);
+      return;
+    }
+    if (S.threads.length < S.max) {
+      addThread('extra', t);
+      highlight(['n_exec', 'd1', 'd2', 'd3', 'n_extra']);
+      addLog('<span class="step">#' + t + '</span> 1단계 아니오. 2단계 offer 실패 (' + how + '). 3단계 스레드 ' + (S.threads.length - 1) + ' &lt; max ' + S.max + ' 이므로 <b>그제서야 임시직 스레드</b>.');
+      return;
+    }
+    highlight(['n_exec', 'd1', 'd2', 'd3', 'n_reject']);
+    var head = '<span class="step">#' + t + '</span> 1단계 아니오. 2단계 실패 (' + how + '). 3단계 스레드 ' + S.threads.length + ' = max ' + S.max + '. <b>거부 정책</b> ';
+    if (S.policy === 'abort') { S.rejected++; addLog(head + 'AbortPolicy: RejectedExecutionException 을 던짐. 제출자가 예외를 받는다.'); }
+    else if (S.policy === 'caller') {
+      S.caller++; addLog(head + 'CallerRunsPolicy: 제출한 스레드가 직접 실행. 그동안 새 제출이 막혀 <b>역압</b>이 걸린다.');
+      setBusy(true); setTimeout(function () { setBusy(false); S.done++; render(); }, 1500);
+    }
+    else if (S.policy === 'discard') { S.discarded++; addLog(head + 'DiscardPolicy: 조용히 버림. 실제로는 이 줄조차 남지 않는다.', 'faint'); }
+    else { var old = S.queue.shift(); S.discarded++; S.queue.push(t); addLog(head + 'DiscardOldestPolicy: 명단에서 가장 오래된 #' + old + ' 을 버리고 #' + t + ' 을 명단에 넣음.'); }
+  }
+
+  function completeOne() {
+    var th = busyThread();
+    if (!th) { addLog('완료할 작업이 없습니다.', 'faint'); return false; }
+    var id = th.task; th.task = null; S.done++;
+    var moved = dispatch();
+    addLog('<span class="step">#' + id + '</span> 완료. T' + th.id + (moved.length ? ' 이 명단에서 #' + moved[0].task + ' 을 집어감.' : ' 은 놀기 시작. 임시직이라도 사라지지 않음 (keepAliveTime 미모델).'));
+    return true;
+  }
+
+  function setBusy(b) {
+    els.busy.style.display = b ? 'inline' : 'none';
+    ['submit1', 'submit5'].forEach(function (id) { $(id).disabled = b; });
+  }
+
+  function slot(cls, text) { return '<div class="slot ' + cls + '">' + text + '</div>'; }
+  function render() {
+    var core = '', extra = '', q = '';
+    S.threads.forEach(function (th) {
+      var html = slot((th.kind === 'core' ? 'core' : 'extra') + (th.task === null ? ' idle' : '') + (th.fresh ? ' new' : ''), 'T' + th.id + ' ' + (th.task === null ? '대기' : '#' + th.task));
+      th.fresh = false;
+      if (th.kind === 'core') core += html; else extra += html;
+    });
+    var coreEmpty = Math.max(0, S.core - S.threads.filter(function (t) { return t.kind === 'core'; }).length);
+    for (var i = 0; i < coreEmpty; i++) core += slot('empty', '빈 자리');
+    var extraEmpty = Math.max(0, S.max - Math.max(S.core, S.threads.length));
+    for (var j = 0; j < extraEmpty; j++) extra += slot('empty', '부를 수 있음');
+    els.coreSlots.innerHTML = core || slot('empty', 'core 0');
+    els.extraSlots.innerHTML = extra || slot('empty', S.qtype === 'unbounded' ? '도달 불가' : '상한');
+    if (S.qtype === 'sync') q = slot('empty', '명단 없음. 용량 0');
+    else {
+      S.queue.forEach(function (id) { q += slot('q', '#' + id); });
+      if (S.qtype === 'bounded') for (var k = S.queue.length; k < S.qcap; k++) q += slot('empty', '빈 칸');
+      else q += slot('empty', '∞ 끝없는 명단');
+    }
+    els.queueSlots.innerHTML = q;
+    $('cRejected').textContent = S.rejected; $('cCaller').textContent = S.caller;
+    $('cDiscarded').textContent = S.discarded; $('cDone').textContent = S.done;
+    els.log.innerHTML = S.log.length ? S.log.map(function (l) { return '<li class="' + l.c + '">' + l.t + '</li>'; }).join('') : '<li class="faint">아직 손님이 없습니다. 제출해보세요.</li>';
+  }
+
+  function resetFloor() { S.threads = []; S.queue = []; S.seq = 0; S.rejected = 0; S.caller = 0; S.discarded = 0; S.done = 0; S.log = []; setBusy(false); highlight([]); }
+
+  els.core.addEventListener('input', function () { S.core = +this.value; if (S.max < S.core) S.max = Math.max(1, S.core); syncControls(); render(); });
+  els.max.addEventListener('input', function () { S.max = Math.max(+this.value, S.core, 1); syncControls(); render(); });
+  els.qcap.addEventListener('input', function () { S.qcap = +this.value; syncControls(); render(); });
+  els.policy.addEventListener('change', function () { S.policy = this.value; syncControls(); });
+  Array.prototype.forEach.call(document.querySelectorAll('input[name=qtype]'), function (r) {
+    r.addEventListener('change', function () { if (this.checked) { S.qtype = this.value; S.queue = []; syncControls(); render(); } });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-preset]'), function (b) {
+    b.addEventListener('click', function () {
+      var p = this.getAttribute('data-preset');
+      if (p === 'fixed') { S.core = 3; S.max = 3; S.qtype = 'unbounded'; }
+      else if (p === 'sync') { S.core = 2; S.max = 6; S.qtype = 'sync'; }
+      else { S.core = 3; S.max = 6; S.qtype = 'bounded'; S.qcap = 3; }
+      resetFloor(); syncControls(); render();
+      addLog('프리셋 적용: ' + this.textContent + '. 손님을 던져보세요.', 'faint'); render();
+    });
+  });
+  $('submit1').addEventListener('click', function () { submitOne(); render(); });
+  $('submit5').addEventListener('click', function () { for (var i = 0; i < 5; i++) { submitOne(); if ($('submit1').disabled) break; } render(); });
+  $('done1').addEventListener('click', function () { completeOne(); render(); });
+  $('doneAll').addEventListener('click', function () { var n = 0; while (completeOne()) { if (++n > 200) break; } render(); });
+  $('reset').addEventListener('click', function () { resetFloor(); render(); });
+
+  syncControls(); render();
+})();
+</script>
+</body>
+</html>

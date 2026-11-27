@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TLS, mTLS 그림책</title>
+<style>
+/* 개념: 한 장에 그림 하나인 그림책. 주황은 누구나 읽는 평문, 청록은 잠긴 암호문. 이 두 색은 상태만 뜻한다. */
+:root {
+  --paper: #eef2f7; --sheet: #ffffff; --ink: #17243a; --muted: #55647a; --line: #cbd5e2;
+  --plain: #b84f08; --plain-soft: #fde9d5; --lock: #08716c; --lock-soft: #d5f0ec; --focus: #3550c8;
+  --paint-pub: #f2c230; --paint-a: #d6336c; --paint-b: #1971c2; --paint-amix: #e4792e; --paint-bmix: #6ba06a; --paint-end: #8a6a4a;
+  --display: "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --body: "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --mono: ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #111a29; --sheet: #1a2536; --ink: #e8eef6; --muted: #a3b1c4; --line: #33435a;
+  --plain: #ffa45c; --plain-soft: #43291a; --lock: #5fdbcf; --lock-soft: #123a3a; --focus: #9db0ff; color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --paper: #111a29; --sheet: #1a2536; --ink: #e8eef6; --muted: #a3b1c4; --line: #33435a;
+  --plain: #ffa45c; --plain-soft: #43291a; --lock: #5fdbcf; --lock-soft: #123a3a; --focus: #9db0ff; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.7; }
+.book { max-width: 780px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 64px; }
+.book > * { min-width: 0; }
+h1, h2 { font-family: var(--display); font-weight: 400; line-height: 1.25; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2.2rem, 7vw, 3.4rem); }
+h2 { font-size: clamp(1.6rem, 5vw, 2.2rem); }
+h3 { font-size: 1.05rem; margin: 0; }
+p { margin: 0; max-width: 65ch; }
+section { display: grid; gap: 16px; }
+section > * { min-width: 0; }
+.lead { font-size: 1.2rem; }
+.muted { color: var(--muted); font-size: .92rem; }
+.picture { background: var(--sheet); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+.picture svg { display: block; width: 100%; height: auto; }
+svg text { font-family: var(--body); fill: var(--ink); font-size: 15px; }
+svg .big { font-family: var(--display); font-size: 19px; }
+svg .mono { font-family: var(--mono); font-size: 13px; }
+svg .sub { fill: var(--muted); font-size: 13px; }
+svg .box { fill: var(--sheet); stroke: var(--ink); stroke-width: 2; }
+svg .wire { stroke: var(--muted); stroke-width: 2; fill: none; }
+.s-plain { fill: var(--plain-soft); stroke: var(--plain); stroke-width: 2; }
+.s-lock { fill: var(--lock-soft); stroke: var(--lock); stroke-width: 2; }
+svg text.t-plain { fill: var(--plain); }
+svg text.t-lock { fill: var(--lock); }
+code, pre { font-family: var(--mono); font-size: .86rem; }
+:not(pre) > code { background: var(--sheet); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; overflow-wrap: anywhere; }
+pre { margin: 0; background: var(--sheet); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto; line-height: 1.5; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.pair > * { min-width: 0; }
+.bytes { border-radius: 8px; padding: 12px 14px; font-family: var(--mono); font-size: .86rem; overflow-wrap: anywhere; line-height: 1.5; }
+.bytes b { display: block; font-family: var(--body); font-size: .85rem; margin-bottom: 4px; }
+.is-plain { background: var(--plain-soft); color: var(--plain); }
+.is-lock { background: var(--lock-soft); color: var(--lock); }
+.promises { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+.promises > div { display: grid; gap: 2px; align-content: start; }
+.promises strong { font-family: var(--display); font-weight: 400; font-size: 1.3rem; }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.stepper { display: grid; gap: 12px; }
+.dots { display: flex; flex-wrap: wrap; gap: 8px; }
+.dots button { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--line); background: var(--sheet); font-family: var(--mono); font-weight: 600; }
+.dots button[aria-current="step"] { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+.nav { display: flex; gap: 8px; }
+.nav button { padding: 8px 16px; border: 2px solid var(--ink); border-radius: 8px; background: transparent; font-weight: 600; }
+.nav button:disabled { opacity: .35; cursor: default; }
+#token { transition: transform .45s ease; }
+.detail { display: grid; gap: 10px; }
+.detail dl { margin: 0; display: grid; gap: 8px; }
+.detail dt { font-size: .82rem; color: var(--muted); letter-spacing: .02em; }
+.detail dd { margin: 0; overflow-wrap: anywhere; }
+.hops { display: grid; gap: 0; }
+.node { font-family: var(--display); font-size: 1.2rem; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.node small { font-family: var(--body); font-size: .85rem; color: var(--muted); }
+.hop { margin: 8px 0 8px 12px; padding: 4px 0 4px 16px; border-left: 4px solid var(--line); display: grid; gap: 8px; }
+.hop[data-on="true"] { border-left-color: var(--lock); }
+.hop[data-on="false"] { border-left-color: var(--plain); border-left-style: dashed; }
+.hop button { justify-self: start; padding: 6px 12px; border-radius: 8px; border: 2px solid currentColor; background: transparent; font-weight: 600; }
+.hop[data-on="true"] button { color: var(--lock); }
+.hop[data-on="false"] button { color: var(--plain); }
+.tally { font-family: var(--display); font-size: 1.25rem; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: .95rem; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+thead th { font-size: .85rem; color: var(--muted); font-weight: 600; }
+.yes { color: var(--lock); font-weight: 600; }
+.no { color: var(--plain); font-weight: 600; }
+ol, ul { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; max-width: 65ch; }
+.stack { display: grid; gap: 4px; max-width: 420px; font-family: var(--mono); font-size: .9rem; }
+.stack div { padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--sheet); }
+.stack .here { background: var(--lock-soft); color: var(--lock); border-color: var(--lock); font-weight: 600; }
+footer { border-top: 1px solid var(--line); padding-top: 16px; display: grid; gap: 6px; }
+@media (prefers-reduced-motion: reduce) { #token { transition: none; } }
+.sim { display: grid; gap: 12px; }
+.sim-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.sim-controls button { padding: 8px 14px; border: 2px solid var(--ink); border-radius: 8px; background: transparent; font-weight: 600; }
+.sim-controls button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+</style>
+</head>
+<body>
+<main class="book">
+<nav aria-label="서재"><a href="./">← 학습 서재</a></nav>
+
+<header style="display:grid;gap:16px">
+  <h1>TLS, mTLS 그림책</h1>
+  <p class="lead">TLS는 Transport Layer Security의 줄임말이에요. 우리말로는 전송 계층 보안입니다.</p>
+  <div class="promises">
+    <div><strong>Transport</strong><span>전송. 데이터를 이쪽에서 저쪽으로 나르는 일이에요.</span></div>
+    <div><strong>Layer</strong><span>계층. 통신은 일을 여러 층으로 나눠 맡아요. 그중 한 층이라는 뜻입니다.</span></div>
+    <div><strong>Security</strong><span>보안. 남이 못 읽고 못 바꾸게 하고, 상대가 진짜인지 확인해요.</span></div>
+  </div>
+  <p>세 단어를 합치면 "나르는 데이터를 지키는 층"이에요. 앱이 보낸 데이터는 TLS 층에서 잠긴 뒤 TCP로 나갑니다.</p>
+  <p>mTLS의 m은 mutual, 서로라는 뜻이에요. 양쪽이 서로 확인하는 TLS입니다.</p>
+  <p>같이 듣는 말이 둘 있어요. <strong>HTTPS</strong>는 HTTP를 TLS로 잠근 것입니다. <strong>SSL</strong>(Secure Sockets Layer)은 TLS의 옛 이름이에요. TLS 1.0이 1999년에 SSL 3.0을 바탕으로 나왔습니다.</p>
+  <p class="lead">그림으로 보면 TLS는 인터넷 편지를 잠긴 상자에 넣어 보내는 약속이에요. 주소는 보이지만 내용은 보이지 않습니다.</p>
+  <div class="picture">
+    <svg viewBox="0 0 480 190" role="img" aria-label="왼쪽은 누구나 읽는 엽서, 오른쪽은 자물쇠가 걸린 상자">
+      <rect class="s-plain" x="16" y="30" width="200" height="120" rx="6"/>
+      <text class="big t-plain" x="32" y="62">엽서</text>
+      <text class="mono t-plain" x="32" y="90">비밀번호: 1234</text>
+      <text class="mono t-plain" x="32" y="112">카드번호: 5678</text>
+      <text class="sub" x="32" y="176">TLS 없음. 지나는 사람 모두가 읽어요</text>
+      <rect class="s-lock" x="264" y="48" width="200" height="102" rx="6"/>
+      <path d="M340 48 v-14 a24 24 0 0 1 48 0 v14" fill="none" stroke="var(--lock)" stroke-width="6"/>
+      <rect x="340" y="82" width="48" height="36" rx="5" fill="var(--lock)"/>
+      <text class="big t-lock" x="282" y="80">상자</text>
+      <text class="sub" x="264" y="176">TLS 있음. 지나는 사람은 상자만 봐요</text>
+    </svg>
+  </div>
+</header>
+
+<section>
+  <h2>실제로 선 위에는 무엇이 지나갈까요</h2>
+  <p>로컬에서 같은 요청을 두 번 보내고, 중간에서 첫 바이트를 그대로 찍었어요. 값은 실측입니다.</p>
+  <div class="pair">
+    <div class="bytes is-plain"><b>TLS 없음. 사람이 읽습니다</b>47 45 54 20 2f 20 48 54 54 50 ...<br>GET / HTTP/1.1</div>
+    <div class="bytes is-lock"><b>TLS 있음. 사람이 못 읽습니다</b>16 03 01 01 28 01 00 01 24 03 03 ...<br>\x16\x03\x01\x01(\x01\x00...</div>
+  </div>
+  <p class="muted">첫 바이트가 <code>47</code>이면 글자 G, 곧 평문 GET이에요. <code>16</code>이면 TLS 핸드셰이크입니다.</p>
+</section>
+
+<section>
+  <h2>TLS의 세 가지 약속</h2>
+  <div class="promises">
+    <div><strong>못 읽어요</strong><span>내용은 상대만 풀 수 있어요.</span><span class="muted">기밀성</span></div>
+    <div><strong>못 바꿔요</strong><span>한 글자만 바뀌어도 상대가 알아채요.</span><span class="muted">무결성</span></div>
+    <div><strong>진짜예요</strong><span>상대가 그 이름의 주인인지 확인해요.</span><span class="muted">인증</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>처음 만나서 하는 인사</h2>
+  <p>데이터를 보내기 전에 둘이 인사하고 열쇠를 맞춰요. 이 과정이 핸드셰이크입니다. 아래 버튼으로 TLS 1.3을 한 단계씩 밟아 보세요.</p>
+  <div class="picture stepper">
+    <svg viewBox="0 0 480 170" role="img" aria-labelledby="step-title">
+      <rect class="box" x="10" y="44" width="104" height="82" rx="6"/>
+      <text class="big" x="62" y="80" text-anchor="middle">손님</text>
+      <text class="sub" x="62" y="104" text-anchor="middle">클라이언트</text>
+      <rect class="box" x="366" y="44" width="104" height="82" rx="6"/>
+      <text class="big" x="418" y="80" text-anchor="middle">서버</text>
+      <text class="sub" x="418" y="104" text-anchor="middle">server</text>
+      <line class="wire" x1="114" y1="85" x2="366" y2="85"/>
+      <g id="keys">
+        <text class="big t-lock" x="62" y="152" text-anchor="middle">열쇠 있음</text>
+        <text class="big t-lock" x="418" y="152" text-anchor="middle">열쇠 있음</text>
+      </g>
+      <g id="token">
+        <rect id="token-box" class="s-plain" x="-44" y="64" width="88" height="42" rx="5"/>
+        <text id="token-text" class="big t-plain" x="0" y="92" text-anchor="middle">Hello</text>
+      </g>
+      <text id="no-wire" class="sub" x="240" y="72" text-anchor="middle" style="display:none">선 위로 아무것도 안 가요</text>
+    </svg>
+    <div class="dots" id="dots" aria-label="핸드셰이크 단계"></div>
+    <div class="detail" aria-live="polite">
+      <h3 id="step-title"></h3>
+      <dl>
+        <div><dt>쉬운 말</dt><dd id="step-easy"></dd></div>
+        <div><dt>진짜 이름</dt><dd id="step-real"></dd></div>
+        <div><dt>엿보는 사람에게 보이는 것</dt><dd id="step-wire"></dd></div>
+      </dl>
+    </div>
+    <div class="nav">
+      <button id="prev" type="button">이전</button>
+      <button id="next" type="button">다음</button>
+    </div>
+  </div>
+  <p class="muted">TLS 1.2는 이 인사에 왕복 2번이 들고, 1.3은 왕복 1번이 들어요. SSL은 TLS의 옛 이름이고, 지금 쓰는 것은 TLS입니다.</p>
+</section>
+
+<section>
+  <h2>열쇠는 선 위로 지나가지 않아요</h2>
+  <p>진짜 상자는 열쇠를 건네야 하지만 TLS는 달라요. 양쪽이 공개된 재료와 자기만의 비밀로 같은 열쇠를 계산합니다. 이 계산이 (EC)DHE예요.</p>
+  <p>연결마다 새 키를 쓰면 순방향 비밀성(forward secrecy)이 생겨요. 나중에 장기 키가 새도 지난 트래픽은 풀리지 않습니다.</p>
+</section>
+
+<section>
+  <h2>신분증과 그 신분증을 믿는 이유</h2>
+  <p>열쇠를 맞춘 상대가 가짜일 수도 있어요. 그래서 서버는 인증서라는 신분증을 내밉니다.</p>
+  <div class="picture">
+    <svg viewBox="0 0 480 150" role="img" aria-label="기기에 미리 들어 있는 루트 CA가 중간 CA에 서명하고, 중간 CA가 서버 인증서에 서명한다">
+      <rect class="box" x="8" y="26" width="132" height="90" rx="6"/>
+      <text class="big" x="74" y="62" text-anchor="middle">루트 CA</text>
+      <text class="sub" x="74" y="88" text-anchor="middle">내 기기에 미리 있음</text>
+      <rect class="box" x="174" y="26" width="132" height="90" rx="6"/>
+      <text class="big" x="240" y="62" text-anchor="middle">중간 CA</text>
+      <text class="sub" x="240" y="88" text-anchor="middle">루트가 서명</text>
+      <rect class="s-lock" x="340" y="26" width="132" height="90" rx="6"/>
+      <text class="big" x="406" y="62" text-anchor="middle">서버 인증서</text>
+      <text class="sub" x="406" y="88" text-anchor="middle">중간 CA가 서명</text>
+      <line class="wire" x1="140" y1="71" x2="174" y2="71"/><line class="wire" x1="306" y1="71" x2="340" y2="71"/>
+      <text class="sub" x="240" y="140" text-anchor="middle">믿음은 왼쪽에서 오른쪽으로 이어져요</text>
+    </svg>
+  </div>
+  <p>손님은 세 층으로 검사해요.</p>
+  <ol>
+    <li>서명이 내가 믿는 루트까지 이어지는가</li>
+    <li>내가 찾아온 이름이 <code>subjectAltName</code>에 있는가</li>
+    <li>서버가 개인키의 주인임을 서명으로 보였는가(<code>CertificateVerify</code>)</li>
+  </ol>
+</section>
+
+<section>
+  <h2>가장 중요한 그림: TLS는 구간마다 따로예요</h2>
+  <p>브라우저 자물쇠는 첫 구간만 말해 줘요. 뒤쪽 구간은 각자 따로 잠그거나 잠그지 않습니다. 아래 버튼으로 구간을 켜고 꺼 보세요.</p>
+  <div class="picture hops" id="hops"></div>
+  <p class="tally" id="tally" aria-live="polite"></p>
+  <p>TLS를 받아서 푸는 일을 TLS 종료(termination)라고 불러요. 풀었다가 다음 구간에서 다시 잠그면 재암호화(re-encryption)이고, 풀지 않고 흘려보내면 통과(pass-through)입니다. 그래서 "우리 서비스는 HTTPS예요"라는 말만으로는 뒤쪽 구간의 답이 되지 않아요.</p>
+</section>
+
+<section>
+  <h2>"TLS가 맞나요?"는 세 질문입니다</h2>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>이 구간의 상태</th><th>엿듣기</th><th>가짜 서버</th><th>가짜 클라이언트</th></tr></thead>
+      <tbody>
+        <tr><td>평문 HTTP</td><td class="no">못 막음</td><td class="no">못 막음</td><td class="no">못 막음</td></tr>
+        <tr><td>TLS, 인증서 검증 끔</td><td class="yes">막음</td><td class="no">못 막음</td><td class="no">못 막음</td></tr>
+        <tr><td>TLS, 서버 검증</td><td class="yes">막음</td><td class="yes">막음</td><td class="no">못 막음</td></tr>
+        <tr><td>mTLS, 양쪽 검증</td><td class="yes">막음</td><td class="yes">막음</td><td class="yes">막음</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>검증을 끈 TLS도 겉으로는 TLS예요. 가짜 서버가 끼어들면 그 가짜와 암호화해서 대화하게 됩니다. mTLS에서는 서버도 손님에게 인증서를 요구해요. 내부 구간에서 호출자를 확인할 때 씁니다.</p>
+</section>
+
+<section>
+  <h2>어느 구간이 TLS인지 확인하는 법</h2>
+  <ol>
+    <li><strong>설정을 봅니다.</strong> 호출 주소가 <code>https://</code>인지, 로드밸런서의 대상 프로토콜이 HTTPS인지 봐요.</li>
+    <li><strong>검증 옵션을 봅니다.</strong> 인증서 검증을 끄는 값이 있는지 찾아요.</li>
+    <li><strong>그 구간의 출발지에서 붙어 봅니다.</strong> 노트북이 아니라 게이트웨이가 도는 자리에서 실행해요.</li>
+    <li><strong>선 위 첫 바이트를 봅니다.</strong> 패킷 캡처에서 <code>16 03</code>이면 TLS, <code>47 45 54</code>면 평문 GET이에요.</li>
+  </ol>
+<pre>openssl s_client -connect &lt;대상&gt;:&lt;포트&gt; -servername &lt;대상&gt; &lt;/dev/null
+curl -v https://&lt;대상&gt;:&lt;포트&gt;/&lt;헬스체크 경로&gt;</pre>
+  <p>결과는 이렇게 읽어요. 로컬에서 직접 돌린 출력입니다(macOS, LibreSSL 3.3.6). 오류 문구는 TLS 라이브러리마다 달라요.</p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>시도</th><th>나온 값</th><th>뜻</th></tr></thead>
+      <tbody>
+        <tr><td>TLS 포트에 <code>s_client</code></td><td><code>Protocol : TLSv1.3</code></td><td class="yes">TLS로 응답</td></tr>
+        <tr><td>평문 포트에 <code>https://</code></td><td><code>curl: (35) ... tlsv1 alert protocol version</code></td><td class="no">그 포트는 TLS가 아님</td></tr>
+        <tr><td>TLS 포트에 <code>http://</code></td><td><code>curl: (1) Received HTTP/0.9 when not allowed</code></td><td>평문 요청이 거부됨, TLS 포트일 가능성</td></tr>
+        <tr><td>자체 서명 인증서에 <code>https://</code></td><td><code>curl: (60) SSL certificate problem: self signed certificate</code></td><td>TLS는 맞음, 신뢰 체인이 없음</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <h3>틀리기 쉬운 곳</h3>
+  <ul>
+    <li><strong>사이드카:</strong> 서비스 메시를 쓰면 앱이 평문을 내보내도 선 위는 mTLS일 수 있어요. 앱 설정만 보면 틀립니다.</li>
+    <li><strong>포트:</strong> 443이 곧 TLS는 아니고, 8080이 곧 평문도 아니에요. 포트는 약속일 뿐입니다.</li>
+    <li><strong>프록시:</strong> 프록시는 TLS를 중간에서 끝낼 수 있어요. 노트북에서 본 인증서는 서버의 것이 아닐 수 있습니다.</li>
+    <li><strong>비밀값:</strong> 평문 구간에서는 API key와 bearer 토큰도 엽서에 적혀 가요.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>건물 우편실: 사이드카</h2>
+  <p>앱마다 신분증을 다루게 하면 앱을 다 고쳐야 해요. 그래서 건물마다 우편실을 둡니다. 앱과 같은 파드에 붙는 이 프록시가 사이드카이고, Istio에서는 Envoy예요.</p>
+  <div class="picture">
+    <svg viewBox="0 0 480 130" role="img" aria-label="앱은 우편실에 맡기고, 우편실끼리 mTLS로 상자를 주고받는다">
+      <rect class="box" x="8" y="34" width="72" height="62" rx="6"/><text class="big" x="44" y="72" text-anchor="middle">앱 A</text>
+      <rect class="s-lock" x="96" y="34" width="84" height="62" rx="6"/><text class="big t-lock" x="138" y="72" text-anchor="middle">우편실</text>
+      <rect class="s-lock" x="300" y="34" width="84" height="62" rx="6"/><text class="big t-lock" x="342" y="72" text-anchor="middle">우편실</text>
+      <rect class="box" x="400" y="34" width="72" height="62" rx="6"/><text class="big" x="436" y="72" text-anchor="middle">앱 B</text>
+      <line class="wire" x1="80" y1="65" x2="96" y2="65"/><line class="wire" x1="180" y1="65" x2="300" y2="65"/><line class="wire" x1="384" y1="65" x2="400" y2="65"/>
+      <text class="big t-lock" x="240" y="52" text-anchor="middle">mTLS</text>
+      <text class="sub" x="240" y="122" text-anchor="middle">앱 코드는 그대로예요</text>
+    </svg>
+  </div>
+  <p><strong>Auto mTLS</strong>는 보내는 쪽 우편실의 판단이에요. 기본으로 켜져 있습니다. 상대에게 우편실이 있으면 잠그고, 없으면 엽서로 보내요.</p>
+</section>
+
+<section>
+  <h2>누가 들어오나 직접 바꿔 보세요</h2>
+  <p>받는 쪽 문의 모드와 수신 허용 명단을 켜고 꺼 보세요. <code>PERMISSIVE</code>는 상자와 엽서를 모두 받고, <code>STRICT</code>는 상자만 받아요. <code>AuthorizationPolicy</code>는 신원을 보고 들여보낼지 정합니다.</p>
+  <div class="picture sim">
+    <div class="sim-controls" role="group" aria-label="문 모드">
+      <button id="mode-permissive" type="button">PERMISSIVE</button>
+      <button id="mode-strict" type="button">STRICT</button>
+    </div>
+    <div class="sim-controls" role="group" aria-label="수신 허용 명단">
+      <button id="policy-none" type="button">명단 없음</button>
+      <button id="policy-allow" type="button">ALLOW: 서비스 A만</button>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>호출자</th><th>오는 방식</th><th>결과</th><th>이유</th></tr></thead>
+        <tbody id="sim-rows"></tbody>
+      </table>
+    </div>
+  </div>
+  <p>우편실을 세우는 일과 엽서를 막는 일은 다른 단계예요. 명단이 없으면 신원이 확인된 호출은 전부 들어옵니다.</p>
+</section>
+
+<section>
+  <h2>게이트웨이를 거치면 얼굴이 가려져요</h2>
+  <p>mTLS 신원은 연결 하나의 상대예요. 게이트웨이를 거치면 받는 쪽에서 보이는 상대는 게이트웨이입니다. 그래서 호출자별 규칙을 못 써요. 직접 호출하면 진짜 호출자가 보입니다. 이 결론은 문서의 정의에서 추론했고 실측하지는 않았어요.</p>
+</section>
+
+<section>
+  <h2>서버 신원이 답하지 못하는 것</h2>
+  <p>mTLS는 어느 서버인지 알려 줘요. 어느 사용자의 어떤 작업인지는 모릅니다. Transaction Token은 이 맥락을 담아 호출 체인을 따라가는, 분 단위 이하 수명의 서명 토큰이에요. Access Token이나 워크로드 인증으로 쓰면 안 되고, 아직 IETF 초안입니다.</p>
+</section>
+
+<section>
+  <h2>TLS가 하지 않는 일</h2>
+  <ul>
+    <li>IP 주소와 포트는 가리지 않아요. 데이터 크기와 시각도 보입니다.</li>
+    <li>접속할 이름(SNI)은 ClientHello에 평문으로 나가요. ECH를 쓰면 가릴 수 있습니다.</li>
+    <li>상자를 받은 쪽에서는 내용이 평문이에요. 서버, 로드밸런서, 로그 안의 데이터는 TLS가 지키지 않아요.</li>
+    <li>권한은 판단하지 않아요. 인가 정책의 일입니다.</li>
+  </ul>
+  <div class="stack" aria-label="통신 층 쌓임">
+    <div>HTTP: 무엇을 말할까</div>
+    <div class="here">TLS: 잠그고 확인하기</div>
+    <div>TCP: 순서대로 빠짐없이</div>
+    <div>IP: 어디로 보낼까</div>
+  </div>
+</section>
+
+<footer>
+
+  <p class="muted">바이트 값과 명령 출력은 로컬 관측(macOS, LibreSSL 3.3.6)이에요. 시뮬레이터는 Istio 1.26 문서의 규칙만 모델했어요. <code>CUSTOM</code>, <code>DENY</code> 동작, <code>DISABLE</code> 모드, 부분 범위 정책은 넣지 않았습니다.</p>
+</footer>
+
+</main>
+
+<script>
+const STEPS = [
+  { title: "1. 안녕, 나는 이런 암호를 쓸 수 있어", easy: "손님이 먼저 인사해요. 쓸 수 있는 암호 목록과 열쇠 재료를 보냅니다.", real: "ClientHello: supported_versions, cipher_suites, key_share, SNI", wire: "거의 다 보여요. 어느 이름으로 접속하는지도 보입니다. 첫 바이트 16 03 01", x: 175, label: "Hello", locked: false, keys: false },
+  { title: "2. 좋아, 이 암호로 하자", easy: "서버가 암호 하나를 고르고 자기 열쇠 재료를 돌려줘요.", real: "ServerHello: 고른 cipher suite, key_share", wire: "보여요. 다만 재료만으로는 열쇠를 못 만듭니다. 첫 바이트 16 03 03", x: 305, label: "Hello", locked: false, keys: false },
+  { title: "3. 둘이 같은 열쇠를 만들어요", easy: "양쪽이 재료를 섞어 같은 열쇠를 계산해요. 열쇠 자체는 선 위로 가지 않습니다.", real: "ECDHE로 공유 비밀 계산, HKDF로 핸드셰이크 키와 트래픽 키 유도", wire: "아무것도 없어요. 각자 자기 안에서 계산합니다.", x: null, keys: true },
+  { title: "4. 내 신분증이야, 그리고 내가 주인이야", easy: "서버가 인증서와 주인 증명을 잠긴 채로 보내요.", real: "EncryptedExtensions, Certificate, CertificateVerify, Finished", wire: "TLS 1.3에서는 잠겨서 안 보여요. TLS 1.2에서는 인증서가 평문이었습니다.", x: 305, label: "신분증", locked: true, keys: true },
+  { title: "5. 확인했어, 시작하자", easy: "손님이 인증서를 검사하고 인사가 끝났다고 알려요.", real: "인증서 체인, 이름, 기한, 서명 검사 뒤 Finished", wire: "잠겨서 안 보여요.", x: 175, label: "끝", locked: true, keys: true },
+  { title: "6. 이제 진짜 이야기", easy: "HTTP 요청과 응답이 잠긴 채로 오가요. 앱은 평소처럼 HTTP를 씁니다.", real: "Application Data 레코드. 첫 바이트 17 03 03", wire: "크기와 시각만 보여요. 내용은 안 보입니다.", x: 240, label: "데이터", locked: true, keys: true },
+];
+const $ = id => document.getElementById(id);
+let step = 0;
+function showStep(i) {
+  step = i;
+  const s = STEPS[i];
+  $("step-title").textContent = s.title;
+  $("step-easy").textContent = s.easy;
+  $("step-real").textContent = s.real;
+  $("step-wire").textContent = s.wire;
+  $("keys").style.display = s.keys ? "" : "none";
+  const token = $("token");
+  token.style.display = s.x === null ? "none" : "";
+  $("no-wire").style.display = s.x === null ? "" : "none";
+  if (s.x !== null) {
+    token.style.transform = `translateX(${s.x}px)`;
+    $("token-box").setAttribute("class", s.locked ? "s-lock" : "s-plain");
+    $("token-text").setAttribute("class", s.locked ? "big t-lock" : "big t-plain");
+    $("token-text").textContent = s.label;
+  }
+  $("prev").disabled = i === 0;
+  $("next").disabled = i === STEPS.length - 1;
+  document.querySelectorAll("#dots button").forEach((b, n) => {
+    if (n === i) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
+  });
+}
+STEPS.forEach((s, i) => {
+  const b = document.createElement("button");
+  b.type = "button"; b.textContent = i + 1; b.setAttribute("aria-label", s.title);
+  b.addEventListener("click", () => showStep(i));
+  $("dots").append(b);
+});
+$("prev").addEventListener("click", () => showStep(step - 1));
+$("next").addEventListener("click", () => showStep(step + 1));
+showStep(0);
+
+const NODES = [
+  ["브라우저", "요청을 만듭니다"],
+  ["로드밸런서", "여기서 풀고 다음 구간을 정합니다"],
+  ["게이트웨이", "여기서 풀고 라우팅합니다"],
+  ["API 서버", "여기서 풀고 처리합니다"],
+];
+const HOP_ON = [true, true, false];
+const PLAIN_WIRE = "POST /login HTTP/1.1\nAuthorization: Bearer abc123";
+const LOCK_WIRE = "17 03 03 00 5e a1 9c 4e 07 d2 ...";
+function renderHops() {
+  const root = $("hops");
+  root.textContent = "";
+  NODES.forEach((node, i) => {
+    const n = document.createElement("div");
+    n.className = "node";
+    n.innerHTML = `<span>${node[0]}</span><small>${node[1]}</small>`;
+    root.append(n);
+    if (i === HOP_ON.length) return;
+    const on = HOP_ON[i];
+    const hop = document.createElement("div");
+    hop.className = "hop";
+    hop.dataset.on = on;
+    const b = document.createElement("button");
+    b.type = "button";
+    b.setAttribute("aria-pressed", on);
+    b.textContent = `구간 ${i + 1}: ${on ? "TLS 켜짐" : "TLS 꺼짐"}`;
+    b.addEventListener("click", () => { HOP_ON[i] = !HOP_ON[i]; renderHops(); root.querySelectorAll("button")[i].focus(); });
+    const bytes = document.createElement("div");
+    bytes.className = `bytes ${on ? "is-lock" : "is-plain"}`;
+    bytes.style.whiteSpace = "pre-wrap";
+    bytes.textContent = on ? LOCK_WIRE : PLAIN_WIRE;
+    hop.append(b, bytes);
+    root.append(hop);
+  });
+  const open = HOP_ON.filter(on => !on).length;
+  $("tally").textContent = open === 0
+    ? "선 3개가 모두 잠겼어요. 그래도 상자 3곳 안에서는 평문입니다."
+    : `선 3개 중 ${open}개에서 토큰이 그대로 보여요.`;
+}
+renderHops();
+
+const CALLERS = [
+  { name: "서비스 A", how: "mTLS, 신원 A", mtls: true, id: "A" },
+  { name: "서비스 B", how: "mTLS, 신원 B", mtls: true, id: "B" },
+  { name: "메시 밖 호출자", how: "평문, 신원 없음", mtls: false, id: null },
+];
+function decide(mode, allowOnlyA, caller) {
+  if (mode === "STRICT" && !caller.mtls) return { pass: false, why: "STRICT는 평문을 받지 않아요" };
+  if (allowOnlyA && caller.id === null) return { pass: false, why: "평문에는 명단과 대조할 신원이 없어요" };
+  if (allowOnlyA && caller.id !== "A") return { pass: false, why: "신원은 맞지만 명단에 없어요" };
+  return { pass: true, why: allowOnlyA ? "명단에 있어요" : "정책이 없으면 전부 허용해요" };
+}
+let mode = "PERMISSIVE", allowOnlyA = false;
+function renderSim() {
+  $("mode-permissive").setAttribute("aria-pressed", mode === "PERMISSIVE");
+  $("mode-strict").setAttribute("aria-pressed", mode === "STRICT");
+  $("policy-none").setAttribute("aria-pressed", !allowOnlyA);
+  $("policy-allow").setAttribute("aria-pressed", allowOnlyA);
+  const rows = $("sim-rows");
+  rows.textContent = "";
+  CALLERS.forEach(c => {
+    const r = decide(mode, allowOnlyA, c);
+    const tr = document.createElement("tr");
+    [c.name, c.how, r.pass ? "들어옴" : "거부", r.why].forEach((v, i) => {
+      const td = document.createElement("td");
+      td.textContent = v;
+      if (i === 2) td.className = r.pass ? "yes" : "no";
+      tr.append(td);
+    });
+    rows.append(tr);
+  });
+}
+$("mode-permissive").addEventListener("click", () => { mode = "PERMISSIVE"; renderSim(); });
+$("mode-strict").addEventListener("click", () => { mode = "STRICT"; renderSim(); });
+$("policy-none").addEventListener("click", () => { allowOnlyA = false; renderSim(); });
+$("policy-allow").addEventListener("click", () => { allowOnlyA = true; renderSim(); });
+renderSim();
+</script>
+</body>
+</html>
